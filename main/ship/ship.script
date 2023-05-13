@@ -1,0 +1,201 @@
+local state = require("main.state")
+
+local MIN_X = -10
+local MAX_X = 10
+local MIN_Y = -10
+local MAX_Y = 10
+
+local INVINCIBLE_DURATION = 1
+
+local INITIAL_GOLD = 100
+local HEALTH_MAX = 10
+local SHIELD_REGEN_RATE = 0.5
+
+local LAZER_STABILITY_RATE = 1
+local LAZER_STABILITY_REGEN_RATE = 2
+local LAZER_STABILITY_MAX = 100
+-- local LAZER_STABILITY_COOLDOWN>= 2
+
+local function get_cursor_screen_position(projection, view)
+	local mat = projection * view
+	local pos = go.get_position()
+	local dir = vmath.rotate(go.get_rotation(), vmath.vector3(0, 0, -1))
+	local target = pos + dir * 20
+	local pv = vmath.vector4(target.x, target.y, target.z, 1)
+	local w, h = window.get_size()
+	pv = mat * pv
+	pv = pv * (1 / pv.w)
+	pv.x = (pv.x / 2 + 0.5) * w / 2
+	pv.y = (pv.y / 2 + 0.5) * h / 2
+
+	return vmath.vector3(pv.x, pv.y, 0)
+end
+
+local function clamp(min, max, value)
+	return math.max(min, math.min(max, value))
+end
+
+local function blink(self)
+	go.set("body#model", "tint", vmath.vector4(1, 0, 0, 1))
+
+	timer.delay(0.1, false, function()
+		go.set("body#model", "tint", vmath.vector4(1, 1, 1, 1))
+	end)
+end
+
+local function shake(self)
+	local angle_x = math.rad(math.random(0, 10))
+	local angle_z = math.rad(math.random(-10, 10))
+	local dur = math.random(10, 30) / 100
+	go.animate("/ship", "rotation.x", go.PLAYBACK_ONCE_PINGPONG, angle_x, go.EASING_LINEAR, dur, 0)
+	go.animate("/ship", "rotation.z", go.PLAYBACK_ONCE_PINGPONG, angle_z, go.EASING_LINEAR, dur, 0)
+end   
+
+local function hit(self, damage)
+	state.use_shield()
+
+	if state.shield > 0 then
+		state.shield = math.max(0, state.shield - (damage or 1))
+		sound.play("audio#damage_shield", { gain = 3})
+	else
+		state.health = math.max(0, state.health - (damage or 1))
+		sound.play("audio#damage_ship")
+		shake(self)
+		blink(self)
+	end
+end
+
+local function lazer(x, y)
+	for i = 1, #x do
+		local pos = go.get_position()
+		local lazer = factory.create("#lazer")
+		local lazer_pos = vmath.vector3(pos.x + (x[i] or 0), pos.y + (y or 0), 0)
+		go.set_position(lazer_pos, lazer)
+	end
+end
+
+local function use_lazer(self)
+	state.use_lazer()
+	
+	sound.play("audio#weapon_lazer", { gain = 0.4 })
+
+	if state.upgrade_beam_splitter == 1 then
+		lazer({0}, -0.25)
+	elseif state.upgrade_beam_splitter == 2 then
+		lazer({-1, 1}, -0.25)
+	elseif state.upgrade_beam_splitter == 3 then
+		lazer({-1.5, 0, 1.5}, -0.25)
+	elseif state.upgrade_beam_splitter == 4 then
+		lazer({-2, -0.5, 0.5, 2}, -0.25)
+	elseif state.upgrade_beam_splitter == 5 then
+		lazer({-2.5, -1, 0, 1, 2.5}, -0.25)
+	end
+end
+
+local function use_missile(self)
+	state.use_missile()
+	
+	sound.play("audio#weapon_missile", { gain = 0.2 })
+end
+
+local function use_roll(self)
+	state.use_roll()
+	
+	local dir = 1
+	if self.right - self.left > 0 then
+		dir = -1
+	end
+	
+	self.invincible = true
+	timer.delay(INVINCIBLE_DURATION, false, function()
+		self.invincible = false
+	end)
+
+	go.animate("body", "euler.z", go.PLAYBACK_ONCE_FORWARD, 360 * dir, go.EASING_OUTCUBIC, 1, 0, function()
+		go.set("body", "euler.z", 0)
+	end)
+end
+
+function init(self)
+	self.crosshair_pos = vmath.vector3()
+	self.next_pos = vmath.vector3()
+	self.left = 0
+	self.right = 0
+	self.up = 0
+	self.down = 0
+	self.invincible = false
+	
+	msg.post(".", "acquire_input_focus")
+	particlefx.play(msg.url("engine#engine1"))
+	particlefx.play(msg.url("engine#engine2"))
+end
+
+function update(self, dt)
+	msg.post("/cursor#cursor", "set_position", { position =  get_cursor_screen_position(state.projection, state.view) })
+end
+
+function fixed_update(self, dt)
+	-- positioning
+	local pos = go.get_position()
+	local velocity = vmath.vector3(self.right - self.left, self.up - self.down, 0)
+
+	if state.is_upgrading() then
+		self.next_pos = vmath.vector3(5, 0, 0)
+		self.left = 0
+		self.right = 0
+		self.up = 0
+		self.down = 0
+		go.set_position(vmath.lerp(dt / 3, pos, self.next_pos + vmath.vector3(math.sin(state.time) * 2, math.sin(state.time) * 2, 0)))
+	else
+		self.next_pos = self.next_pos + velocity * dt * 10
+		self.next_pos.x = clamp(MIN_X, MAX_X, self.next_pos.x)
+		self.next_pos.y = clamp(MIN_Y, MAX_Y, self.next_pos.y)
+		go.set_position(vmath.lerp(dt * 3, pos, self.next_pos))
+	end
+
+	-- roll
+	local rotZ = vmath.quat_rotation_z(state.is_upgrading() and 0 or -velocity.x)
+	go.set_rotation(vmath.lerp(dt * 2, go.get_rotation(), rotZ))
+
+	-- pitch
+	local rotX = vmath.quat_rotation_x(clamp(-45, 45, state.is_upgrading() and 0 or velocity.y))
+	go.set_rotation(vmath.lerp(dt, go.get_rotation(), rotX))
+
+	-- camera follow
+	local pos = go.get_position()
+	local cur_cam_pos = go.get_position("camera")
+	local next_cam_pos = vmath.vector3(pos.x / 2, pos.y / 3 * 2, 10)
+	go.set_position(vmath.lerp(dt * 2, cur_cam_pos, next_cam_pos), "camera")
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		if state.cooldown_upgrade > 0 and not self.invincible then
+			hit(self)
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	if action_id == hash("left") then
+		self.left = action.value
+	end
+	if action_id == hash("right") then
+		self.right = action.value
+	end
+	if action_id == hash("up") then
+		self.up = action.value
+	end
+	if action_id == hash("down") then
+		self.down = action.value
+	end
+	if action_id == hash("lazer") and state.can_use_lazer() then
+		use_lazer(self)
+	end
+	if action_id == hash("missile") and state.can_use_missile() then
+		use_missile(self)
+	end
+	if action_id == hash("roll") and action.pressed and state.can_use_roll() then
+		use_roll(self)
+	end
+end

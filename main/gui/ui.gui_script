@@ -1,0 +1,194 @@
+local constants = require("main.constants")
+local state = require("main.state")
+
+local COLOR = vmath.vector4(0, 224 / 255, 1, 1)
+
+local function numWithCommas(n)
+	return tostring(math.floor(n)):reverse():gsub("(%d%d%d)","%1,"):gsub(",(%-?)$","%1"):reverse()
+end
+
+local function button(self, node, action_id, action, on_press)
+	local picked = gui.pick_node(node, action.x, action.y)
+
+	if picked then
+		if action_id == nil and self.hovered[node] == nil then
+			self.hovered[node] = true
+			gui.animate(node, "scale", vmath.vector3(1.1, 1.1, 1.1), gui.EASING_OUTELASTIC, 0.75)
+			gui.animate(node, "color", vmath.vector3(1, 1, 1, 1), gui.EASING_OUTCUBIC, 0.3)
+			sound.play("audio#button_hover")
+		elseif action_id == hash("touch") then
+			if action.pressed then
+				gui.animate(node, "scale", vmath.vector3(1.15, 1.15, 1.15), gui.EASING_OUTELASTIC, 0.75)
+				sound.play("audio#button_click")
+			elseif action.released then
+				timer.delay(0, false, on_press)
+				gui.animate(node, "scale", vmath.vector3(1.1, 1.1, 1.1), gui.EASING_OUTELASTIC, 0.75)
+			end
+		end
+	elseif gui.get_scale(node).x ~= 1 then
+		self.hovered[node] = nil
+		gui.animate(node, "scale", vmath.vector3(1, 1, 1), gui.EASING_OUTELASTIC, 0.75)
+		gui.animate(node, "color", vmath.vector3(0.7, 0.7, 0.7, 1), gui.EASING_OUTCUBIC, 0.3)
+	end
+end
+
+local function reset_upgrades(self)
+	gui.set_enabled(self.confirm, false)
+	gui.set_enabled(self.upgrade_forcefield, true)
+	gui.set_enabled(self.upgrade_roll, true)
+	gui.set_enabled(self.upgrade_gyrator, true)
+	gui.set_enabled(self.upgrade_beam_splitter, true)
+	gui.set_enabled(self.upgrade_stabilizer, true)
+	gui.set_enabled(self.upgrade_guidance_system, true)
+	gui.set_enabled(self.upgrade_condensor, true)
+end
+
+local function toggle_upgrades(self, visible)
+	self.upgrades_visible = visible
+
+	if visible then
+		reset_upgrades(self)
+		gui.set_enabled(self.upgrades, true)
+		gui.set_color(self.upgrades, vmath.vector4(1, 1, 1, 0))
+		gui.animate(self.upgrades, "color.w", 1, gui.EASING_OUTCUBIC, 1)
+		gui.animate(self.upgrades, "position.x", 200, gui.EASING_OUTBACK, 0.5, 0)
+	else
+		gui.animate(self.upgrades, "color.w", 0, gui.EASING_OUTCUBIC, 1)
+		gui.animate(self.upgrades, "position.x", -200, gui.EASING_INBACK, 0.5, 0, function()
+			gui.set_enabled(self.upgrades, false)
+		end)
+	end
+end
+
+local function confirm(self, node, description)
+	self.pending_upgrade = node
+	reset_upgrades(self)
+	gui.set_position(self.confirm, gui.get_position(node))
+	gui.set_text(self.confirm_description, description)
+	gui.set_enabled(self.confirm, true)
+	gui.set_enabled(node, false)
+end
+
+function init(self)
+	self.gold = 0
+	self.health = 0
+	self.shield = 0
+	self.stability = 0
+	
+	self.gold_label = gui.get_node("gold")
+	self.upgrade_time = gui.get_node("upgrade_time")
+	self.lazer = gui.get_node("lazer")
+	self.missile = gui.get_node("missile_cooldown")
+
+	self.pending_upgrade = nil
+	self.upgrades_visible = false
+	self.upgrades = gui.get_node("upgrades")
+	self.upgrade_forcefield = gui.get_node("forcefield/upgrade")
+	self.upgrade_roll = gui.get_node("roll/upgrade")
+	self.upgrade_gyrator = gui.get_node("gyrator/upgrade")
+	self.upgrade_beam_splitter = gui.get_node("beam_splitter/upgrade")
+	self.upgrade_stabilizer = gui.get_node("stabilizer/upgrade")
+	self.upgrade_guidance_system = gui.get_node("guidance_system/upgrade")
+	self.upgrade_condensor = gui.get_node("condensor/upgrade")
+	self.continue = gui.get_node("continue")
+	self.confirm = gui.get_node("confirm")
+	self.confirm_description = gui.get_node("confirm_description")
+	self.confirm_cost = gui.get_node("confirm_cost")
+	self.confirm_cost_icon = gui.get_node("confirm_cost_icon")
+
+	self.hovered = {}
+
+	msg.post(".", "acquire_input_focus")
+end
+
+function update(self, dt)
+	if state.is_upgrading() then
+		if not self.upgrades_visible then
+			toggle_upgrades(self, true)
+		end
+		
+		return
+	end
+	
+	-- smoothly lerp gold label text
+	if self.gold ~= state.gold then
+		self.gold = math.ceil(vmath.lerp(dt * 5, self.gold, state.gold))
+		gui.set_text(self.gold_label, "Gold:  " .. numWithCommas(self.gold))
+	end
+
+	-- upgrade timer
+	local minutes = math.floor(state.cooldown_upgrade / 60)
+	local seconds = math.floor(state.cooldown_upgrade) % 60
+	local padding = seconds < 10 and "0" or ""
+	gui.set_text(self.upgrade_time, "Upgrade:  " .. minutes .. ":" .. padding .. seconds)
+
+	-- missile cooldown
+	gui.set_fill_angle(self.missile, -360 * state.get_cooldown_missile_pct())
+
+	-- health
+	if self.health ~= state.health then
+		self.health = state.health
+		for i = 1, 10 do
+			local alpha = i > state.health and 0 or 1
+			gui.animate(gui.get_node("health" .. i), "color.w", alpha, gui.EASING_OUTQUAD, 0.3)
+		end
+	end
+	
+	-- shields
+	if self.shield ~= state.shield then
+		self.shield = state.shield
+		for i = 1, 10 do
+			local alpha = i > state.shield and 0 or 1
+			gui.animate(gui.get_node("shield" .. i), "color.w", alpha , gui.EASING_OUTQUAD, 0.3)
+		end
+	end
+
+	-- lazer stability
+	if self.stability ~= state.lazer_stability then
+		self.stability = state.lazer_stability
+		local lazer_scale = math.min(1, (state.lazer_stability or 0) / 100)
+		local lazer_color = lazer_scale < 0.25 and vmath.vector4(1, 0, 0, 1) or COLOR
+		gui.animate(self.lazer, "scale.x", lazer_scale, gui.EASING_OUTCUBIC, 0.1)
+		gui.animate(self.lazer, "color", lazer_color, gui.EASING_OUTCUBIC, 0.3)
+	end
+end
+
+function on_message(self, message_id, message, sender)	
+	-- if message_id == hash("upgrade") then
+	-- 	-- toggle_upgrades(self, true)
+	-- elseif message_id == hash("update_ui") then
+	-- 	-- update_expensive(self)
+	-- end
+end
+
+function on_input(self, action_id, action)
+	button(self, self.upgrade_forcefield, action_id, action, function()
+		confirm(self, self.upgrade_forcefield, "Improve shield")
+	end)
+	button(self, self.upgrade_roll, action_id, action, function()
+		confirm(self, self.upgrade_roll, "Unlock barrel rolls")
+	end)
+	button(self, self.upgrade_gyrator, action_id, action, function()
+		confirm(self, self.upgrade_gyrator, "Reduce roll cooldown")
+	end)
+	button(self, self.upgrade_beam_splitter, action_id, action, function()
+		confirm(self, self.upgrade_beam_splitter, "Additional lazers beams")
+	end)
+	button(self, self.upgrade_stabilizer, action_id, action, function()
+		confirm(self, self.upgrade_stabilizer, "Increase lazer lifetime")
+	end)
+	button(self, self.upgrade_guidance_system, action_id, action, function()
+		confirm(self, self.upgrade_guidance_system, "Unlock homing missiles")
+	end)
+	button(self, self.upgrade_condensor, action_id, action, function()
+		confirm(self, self.upgrade_condensor, "Reduce missile cooldown")
+	end)
+	button(self, self.confirm, action_id, action, function()
+	end)
+	button(self, self.continue, action_id, action, function()
+		state.continue()
+		toggle_upgrades(self, false)
+	end)
+
+	return self.upgrades_visible
+end

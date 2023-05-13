@@ -1,0 +1,176 @@
+local state = require("main.state")
+
+local nv = vmath.vector4(0, 0, -1, 1)
+local fv = vmath.vector4(0, 0, 1, 1)
+local pv = vmath.vector4(0, 0, 0, 1)
+
+--
+-- projection that centers content with maintained aspect ratio and optional zoom
+--
+local function fixed_projection(near, far, zoom)
+    local projected_width = render.get_window_width() / (zoom or 1)
+    local projected_height = render.get_window_height() / (zoom or 1)
+    local xoffset = -(projected_width - render.get_width()) / 2
+    local yoffset = -(projected_height - render.get_height()) / 2
+    return vmath.matrix4_orthographic(xoffset, xoffset + projected_width, yoffset, yoffset + projected_height, near, far)
+end
+--
+-- projection that centers and fits content with maintained aspect ratio
+--
+local function fixed_fit_projection(near, far)
+    local width = render.get_width()
+    local height = render.get_height()
+    local window_width = render.get_window_width()
+    local window_height = render.get_window_height()
+    local zoom = math.min(window_width / width, window_height / height)
+    return fixed_projection(near, far, zoom)
+end
+--
+-- projection that stretches content
+--
+local function stretch_projection(near, far)
+    return vmath.matrix4_orthographic(0, render.get_width(), 0, render.get_height(), near, far)
+end
+
+local function get_projection(self)
+    return self.projection_fn(self.near, self.far, self.zoom)
+end
+
+local function screen_to_world_ray(self, x, y)
+    local m = vmath.inv(self.projection * self.view)
+
+    -- Remap coordinates to range -1 to 1
+    local x1 = (2 * x / render.get_width()) - 1
+    local y1 = (2 * y / render.get_height()) - 1
+
+    nv.x, nv.y = x1, y1
+    fv.x, fv.y = x1, y1
+    local np = m * nv
+    local fp = m * fv
+    np = np * (1/np.w)
+    fp = fp * (1/fp.w)
+
+    return vmath.vector3(np.x, np.y, np.z), vmath.vector3(fp.x, fp.y, fp.z)
+end
+
+
+local function world_to_screen(self, pos)
+    local m = self.projection * self.view
+    local pv = vmath.vector4(pos.x, pos.y, pos.z, 1)
+    pv = m * pv
+    pv = pv * (1/pv.w)
+    pv.x = (pv.x / 2 + 0.5) * render.get_width()
+    pv.y = (pv.y / 2 + 0.5) * render.get_height()
+
+    return vmath.vector3(pv.x, pv.y, 0)
+end
+
+function init(self)
+    self.tile_pred = render.predicate({"tile"})
+    self.gui_pred = render.predicate({"gui"})
+    self.text_pred = render.predicate({"text"})
+    self.particle_pred = render.predicate({"particle"})
+    self.model_pred = render.predicate({"model"})
+    -- self.sky_pred = render.predicate({"sky"})
+    
+    self.clear_color = vmath.vector4(0, 1, 0, 0)
+    self.clear_color.x = sys.get_config("render.clear_color_red", 0)
+    self.clear_color.y = sys.get_config("render.clear_color_green", 1)
+    self.clear_color.z = sys.get_config("render.clear_color_blue", 0)
+    self.clear_color.w = sys.get_config("render.clear_color_alpha", 0)
+
+    self.view = vmath.matrix4()
+
+    -- default is stretch projection. copy from builtins and change for different projection
+    -- or send a message to the render script to change projection:
+    -- msg.post("@render:", "use_stretch_projection", { near = -1, far = 1 })
+    -- msg.post("@render:", "use_fixed_projection", { near = -1, far = 1, zoom = 2 })
+    -- msg.post("@render:", "use_fixed_fit_projection", { near = -1, far = 1 })
+    self.near = -1
+    self.far = 1
+    self.projection_fn = stretch_projection
+end
+
+function update(self)
+    render.set_depth_mask(true)
+    render.set_stencil_mask(0xff)
+    render.clear({[render.BUFFER_COLOR_BIT] = vmath.vector4(0,0,0,1), [render.BUFFER_DEPTH_BIT] = 1, [render.BUFFER_STENCIL_BIT] = 0})
+
+    render.set_viewport(0, 0, render.get_window_width(), render.get_window_height())
+    render.set_view(self.view)
+    render.set_projection(get_projection(self))
+
+    -- render sky
+    -- 
+    -- render.draw(self.sky_pred)
+    
+    -- render models
+    --
+    render.enable_state(render.STATE_BLEND)
+    render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
+    render.enable_state(render.STATE_CULL_FACE)
+    render.enable_state(render.STATE_DEPTH_TEST)
+    render.set_depth_mask(true)
+    render.draw(self.model_pred)
+    render.set_depth_mask(false)
+    render.disable_state(render.STATE_DEPTH_TEST)
+    render.disable_state(render.STATE_CULL_FACE)
+    render.disable_state(render.STATE_BLEND)
+    
+    -- render sprites, label, particles
+    --
+    render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
+    render.enable_state(render.STATE_DEPTH_TEST)
+    render.enable_state(render.STATE_STENCIL_TEST)
+    render.enable_state(render.STATE_BLEND)
+    render.draw(self.tile_pred)
+    render.draw(self.particle_pred)
+    render.disable_state(render.STATE_STENCIL_TEST)
+    render.disable_state(render.STATE_DEPTH_TEST)
+    
+    -- debug
+    render.draw_debug3d()
+
+    -- render GUI
+    --
+    render.set_view(vmath.matrix4())
+    render.set_projection(vmath.matrix4_orthographic(0, render.get_window_width(), 0, render.get_window_height(), -1, 1))
+
+    render.enable_state(render.STATE_STENCIL_TEST)
+    render.draw(self.gui_pred)
+    render.draw(self.text_pred)
+    render.disable_state(render.STATE_BLEND)
+    render.disable_state(render.STATE_STENCIL_TEST)
+
+    state.projection = self.projection
+    state.view = self.view
+end
+
+function on_message(self, message_id, message) 
+    if message_id == hash("clear_color") then
+        -- self.clear_color = vec4(1,0,0,1)
+    elseif message_id == hash("set_view_projection") then
+        self.view = message.view
+        self.projection = message.projection
+    elseif message_id == hash("use_camera_projection") then
+        self.projection_fn = function() return self.projection or vmath.matrix4() end
+    elseif message_id == hash("use_stretch_projection") then
+        self.near = message.near or -1
+        self.far = message.far or 1
+        self.projection_fn = stretch_projection
+    elseif message_id == hash("use_fixed_projection") then
+        self.near = message.near or -1
+        self.far = message.far or 1
+        self.zoom = message.zoom or 1
+        self.projection_fn = fixed_projection
+    elseif message_id == hash("use_fixed_fit_projection") then
+        self.near = message.near or -1
+        self.far = message.far or 1
+        self.projection_fn = fixed_fit_projection
+    elseif message_id == hash("screen_to_world") then
+        if self.projection ~= nil and self.view ~= nill then
+            local v1, v2 = screen_to_world_ray(self, message.x, message.y)
+            msg.post(msg.url("main:/ship"), "screen_to_world", { v1 = v1, v2 = v2})
+        end
+    end
+end

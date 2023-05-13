@@ -1,0 +1,88 @@
+key_trigger {
+  input: KEY_W
+  action: "up"
+}
+key_trigger {
+  input: KEY_S
+  action: "down"
+}
+key_trigger {
+  input: KEY_A
+  action: "left"
+}
+key_trigger {
+  input: KEY_D
+  action: "right"
+}
+key_trigger {
+  input: KEY_SPACE
+  action: "lazer"
+}
+key_trigger {
+  input: KEY_E
+  action: "missile"
+}
+key_trigger {
+  input: KEY_Q
+  action: "roll"
+}
+key_trigger {
+  input: KEY_UP
+  action: "up"
+}
+key_trigger {
+  input: KEY_DOWN
+  action: "down"
+}
+key_trigger {
+  input: KEY_LEFT
+  action: "left"
+}
+key_trigger {
+  input: KEY_RIGHT
+  action: "right"
+}
+mouse_trigger {
+  input: MOUSE_BUTTON_1
+  action: "touch"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_LEFT
+  action: "left"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_RIGHT
+  action: "right"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_UP
+  action: "up"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSTICK_DOWN
+  action: "down"
+}
+gamepad_trigger {
+  input: GAMEPAD_LTRIGGER
+  action: "missile"
+}
+gamepad_trigger {
+  input: GAMEPAD_RTRIGGER
+  action: "lazer"
+}
+gamepad_trigger {
+  input: GAMEPAD_LSHOULDER
+  action: "roll"
+}
+gamepad_trigger {
+  input: GAMEPAD_RSHOULDER
+  action: "roll"
+}
+gamepad_trigger {
+  input: GAMEPAD_RPAD_UP
+  action: "missile"
+}
+gamepad_trigger {
+  input: GAMEPAD_RPAD_DOWN
+  action: "lazer"
+}

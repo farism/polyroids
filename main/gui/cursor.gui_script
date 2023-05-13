@@ -1,0 +1,76 @@
+local CURSOR_1_SPEED = 3
+local CURSOR_2_SPEED = 2
+local DELTA_SCALE = 20
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+
+	self.projection = vmath.matrix4()
+	self.view = vmath.matrix4()
+	self.cursor1 = gui.get_node("cursor1")
+	self.cursor2 = gui.get_node("cursor2")
+	self.pos = vmath.vector3()
+	self.left = 0
+	self.right = 0
+	self.up = 0
+	self.down = 0
+	local width, height = window.get_size()
+	self.width = width
+	self.height = height
+end
+
+function final(self)
+end
+
+function clamp(min, max, value)
+	return math.max(min, math.min(max, value))
+end
+
+function update(self, dt)
+	
+	-- self.pos.x = clamp(0, self.width, self.pos.x + (self.right - self.left) * DELTA_SCALE)
+	-- self.pos.y = clamp(0, self.height, self.pos.y + (self.up - self.down) * DELTA_SCALE)
+	-- 
+	-- local cursor1Pos = vmath.lerp(dt * CURSOR_1_SPEED, gui.get_position(self.cursor1), self.pos)
+	-- gui.set_position(self.cursor1, cursor1Pos)
+	-- 
+	-- local cursor2Pos = vmath.lerp(dt * CURSOR_2_SPEED, gui.get_position(self.cursor2), self.pos)
+	-- gui.set_position(self.cursor2, cursor2Pos)
+
+	gui.set_position(self.cursor1, self.pos)
+	gui.set_position(self.cursor2, vmath.lerp(dt * CURSOR_2_SPEED, gui.get_position(self.cursor2), self.pos))
+end
+
+function fixed_update(self, dt)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("set_projection_view") then
+		self.projection = message.projection
+		self.view = message.view
+	elseif message_id == hash("set_position") then
+		self.pos.x = message.position.x * 2
+		self.pos.y = message.position.y * 2
+	end
+end
+
+function on_input(self, action_id, action)
+	if action_id == hash("aimleft") then
+		self.left = action.value
+	end
+	if action_id == hash("aimright") then
+		self.right = action.value
+	end
+	if action_id == hash("aimup") then
+		self.up = action.value
+	end
+	if action_id == hash("aimdown") then
+		self.down = action.value
+	end
+	-- if action_id == nil then
+	-- 	self.pos = vmath.vector3(action.screen_x, action.screen_y, 0)
+	-- end	
+end
+
+function on_reload(self)
+end

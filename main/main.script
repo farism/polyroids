@@ -1,0 +1,25 @@
+math.randomseed(os.time())
+
+local state = require("main.state")
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	msg.post("@render:", "use_camera_projection")
+	msg.post("camera", "acquire_camera_focus")	
+	
+	sound.play("audio#music_track1")
+
+	state.cooldown_upgrade = 2 -- use fast initial upgrade_time time
+	
+	self.light = vmath.vector4(0, go.get_position().y + 10, -10, 0)
+end
+
+function update(self, dt)
+	state.update(dt)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("continue") then
+		state.continue()
+	end
+end

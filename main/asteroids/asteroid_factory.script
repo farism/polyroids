@@ -1,0 +1,54 @@
+math.randomseed(os.time())
+
+local SPAWN_TIME = 0.3;
+local MIN_SPAWN_X = -10
+local MAX_SPAWN_X = 10
+local MIN_SPAWN_Y = -8
+local MAX_SPAWN_Y = 8
+local MIN_SPAWN_Z = -20
+local MAX_SPAWN_Z = -40
+local MIN_FORCE = 20
+local MAX_FORCE = 70
+local MIN_ANGULAR_FORCE = -10
+local MAX_ANGULAR_FORCE = 10
+local VARIANTS = 7
+local GOLD_CHANCE = 4
+local GOLD_MIN = 100
+local GOLD_MAX = 1000
+
+function spawn()
+	local factory_id = "#factory" .. math.random(1, VARIANTS)
+	local s = math.random(100, 500) / 100
+	local position = vmath.vector3(
+		math.random(MIN_SPAWN_X, MAX_SPAWN_X), 
+		math.random(MIN_SPAWN_Y, MAX_SPAWN_Y), 
+		math.random(MAX_SPAWN_Z, MIN_SPAWN_Z)
+	)
+	local rotation = vmath.quat_rotation_x(math.random(1,5)) * vmath.quat_rotation_y(math.random(1,5))
+	local scale = vmath.vector3(s, s, s)
+	local scale_len = vmath.length(scale)
+	-- make dynamic based on difficulty?
+	local gold = math.random(1, GOLD_CHANCE) == 1 and math.random(GOLD_MIN, GOLD_MAX) or 0
+	local id = factory.create(factory_id, position, rotation, {gold = gold}, scale)
+	local ship_pos = go.get_position("ship")
+	local ship_target = ship_pos + vmath.vector3(math.random(-5, 5), math.random(-5, 5), 0)
+	local direction = vmath.normalize(ship_target - position)
+	local force = direction * math.random(MIN_FORCE, MAX_FORCE) * scale_len / (gold > 0 and 2 or 1)
+	local angular_force = vmath.vector3(math.random(MIN_ANGULAR_FORCE, MAX_ANGULAR_FORCE) / 100 * scale_len, 0, 0)
+	
+	msg.post(id, hash("apply_force"), { force = angular_force, position = vmath.vector3() }) -- cause the object to start rotating
+	msg.post(id, hash("apply_force"), { force = force, position = position }) -- move object towards shipd)
+end
+
+function init(self)
+	timer.delay(SPAWN_TIME, true, function()
+		spawn()
+	end)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("upgrade") then
+		pprint("asteroids")
+	elseif message_id == hash("continue") then
+	end
+end

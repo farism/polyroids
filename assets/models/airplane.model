@@ -1,0 +1,7 @@
+mesh: "/assets/assetforge/airplane.glb"
+material: "/builtins/materials/model.material"
+textures: "/assets/images/airplane.png"
+skeleton: ""
+animations: ""
+default_animation: ""
+name: "airplane"

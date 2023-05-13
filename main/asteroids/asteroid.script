@@ -1,0 +1,64 @@
+local state = require("main.state")
+
+go.property("gold", 0)
+
+local GOLD_CHANCE = 25
+
+local function blink()
+	go.set("#rock", "tint", vmath.vector4(1, 0, 0, 1))
+	
+	timer.delay(0.05, false, function()
+		go.set("#rock", "tint", vmath.vector4(1, 1, 1, 1))
+	end)
+end
+
+local function hit(self)
+	self.health = self.health - 1
+	
+	if self.health <= 0 then
+		sound.play("audio#asteroid_destroy", { gain = 0.3 })
+		
+		if self.gold > 0 then
+			state.add_gold(self.gold)
+		end
+
+		go.delete()
+	else 
+		blink()
+	end
+end
+
+function init(self, properties, abc)
+	self.age = 0
+	self.health = self.gold > 0 and math.random(10, 20) or math.random(2, 5)
+	self.destroyed = false
+
+	for i = 1, 6 do
+		if self.gold > i and math.random(0, 100) > GOLD_CHANCE then
+			local s = math.max(1, math.min(3, math.ceil(self.gold / 4)))
+		else
+			msg.post("#gold" .. i, "disable")
+		end
+	end
+end
+
+function final(self)
+end
+
+function update(self, dt)
+	self.age = self.age + dt
+	
+	if go.get_position().z > 10 or self.age > 20 then
+		go.delete()
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		if message.other_id == hash("/ship") then
+			go.delete()
+		else
+			hit(self)
+		end
+	end
+end

@@ -1,0 +1,27 @@
+local BULLET_SPEED = 2
+
+function init(self)
+	self.age = 0
+	self.dir = vmath.rotate(go.get_rotation(), vmath.vector3(0, 0, -1))
+	go.set_scale(vmath.vector3(0.2, 0.2, 2), id)
+end
+
+function update(self, dt)
+	self.age = self.age + dt
+	
+	local p = go.get_position()
+	go.set_position(p + self.dir * BULLET_SPEED)
+	
+	if self.age > 0.5 then
+		go.delete()
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("set_target_position") then
+		self.direction = vmath.normalize(message.pos + vmath.vector3(0, 0, 0) - go.get_position())
+		
+	elseif message_id == hash("trigger_response") then
+		go.delete()
+	end
+end
