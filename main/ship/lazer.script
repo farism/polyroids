@@ -1,4 +1,4 @@
-local BULLET_SPEED = 2
+local SPEED = 2
 
 function init(self)
 	self.age = 0
@@ -10,7 +10,7 @@ function update(self, dt)
 	self.age = self.age + dt
 	
 	local p = go.get_position()
-	go.set_position(p + self.dir * BULLET_SPEED)
+	go.set_position(p + self.dir * SPEED)
 	
 	if self.age > 0.5 then
 		go.delete()

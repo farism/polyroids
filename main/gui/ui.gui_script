@@ -1,10 +1,17 @@
-local constants = require("main.constants")
 local state = require("main.state")
 
-local COLOR = vmath.vector4(0, 224 / 255, 1, 1)
+local COLOR_BLUE = vmath.vector4(0, 0.87, 1, 1)
+local COLOR_YELLOW = vmath.vector3(1, 1, 0, 1)
+local COLOR_RED = vmath.vector3(1, 0.4, 0.4, 1)
 
 local function numWithCommas(n)
 	return tostring(math.floor(n)):reverse():gsub("(%d%d%d)","%1,"):gsub(",(%-?)$","%1"):reverse()
+end
+
+local function button_hover(node)
+	local a = gui.get_alpha(node)
+	gui.animate(node, "scale", vmath.vector3(1.1, 1.1, 1.1), gui.EASING_OUTELASTIC, 0.75)
+	gui.animate(node, "color", vmath.vector3(1, 1, 1, 1), gui.EASING_OUTCUBIC, 0.3)
 end
 
 local function button(self, node, action_id, action, on_press)
@@ -13,15 +20,14 @@ local function button(self, node, action_id, action, on_press)
 	if picked then
 		if action_id == nil and self.hovered[node] == nil then
 			self.hovered[node] = true
-			gui.animate(node, "scale", vmath.vector3(1.1, 1.1, 1.1), gui.EASING_OUTELASTIC, 0.75)
-			gui.animate(node, "color", vmath.vector3(1, 1, 1, 1), gui.EASING_OUTCUBIC, 0.3)
+			button_hover(node)
 			sound.play("audio#button_hover")
 		elseif action_id == hash("touch") then
 			if action.pressed then
 				gui.animate(node, "scale", vmath.vector3(1.15, 1.15, 1.15), gui.EASING_OUTELASTIC, 0.75)
 				sound.play("audio#button_click")
 			elseif action.released then
-				timer.delay(0, false, on_press)
+				timer.delay(0.1, false, on_press)
 				gui.animate(node, "scale", vmath.vector3(1.1, 1.1, 1.1), gui.EASING_OUTELASTIC, 0.75)
 			end
 		end
@@ -32,15 +38,78 @@ local function button(self, node, action_id, action, on_press)
 	end
 end
 
+local function update_upgrade(self, id, upgrades, level)
+	local up = upgrades[level]
+	local node = gui.get_node(id .. "/upgrade")
+	
+	if up == nil then
+		up = upgrades[1]
+		gui.set_alpha(node, 0.5)
+		gui.set_text(gui.get_node(id .. "/level"), "MAX")
+		gui.set_text(gui.get_node(id .. "/cost"), "")
+		gui.set_enabled(gui.get_node(id .. "/cost_icon"), false)
+	else
+		gui.set_text(gui.get_node(id .. "/name"), up.name)
+		gui.set_text(gui.get_node(id .. "/description"), up.description)
+		gui.set_text(gui.get_node(id .. "/level"), "Level " .. level)
+		gui.set_text(gui.get_node(id .. "/cost"), numWithCommas(up.cost))
+		gui.set_enabled(gui.get_node(id .. "/cost_icon"), true)
+	end
+
+	gui.set_text(gui.get_node(id .. "/description"), up.name)
+	gui.set_text(gui.get_node(id .. "/description"), up.description)
+	gui.set_enabled(node, true)
+end
+
 local function reset_upgrades(self)
+	update_upgrade(self, "forcefield", UPGRADE_FORCEFIELD, state.upgrade_forcefield + 1)
+	update_upgrade(self, "roll", UPGRADE_ROLL, state.upgrade_roll + 1)
+	update_upgrade(self, "gyrator", UPGRADE_GYRATOR, state.upgrade_gyrator + 1)
+	update_upgrade(self, "beam_splitter", UPGRADE_BEAM_SPLITTER, state.upgrade_beam_splitter + 1)
+	update_upgrade(self, "stabilizer", UPGRADE_STABILIZER, state.upgrade_stabilizer + 1)
+	update_upgrade(self, "missile", UPGRADE_MISSILE, state.upgrade_missile + 1)
+	update_upgrade(self, "condensor", UPGRADE_CONDENSOR, state.upgrade_condensor + 1)
+	gui.set_position(self.confirm, vmath.vector3(-1000, 0, 0))
 	gui.set_enabled(self.confirm, false)
-	gui.set_enabled(self.upgrade_forcefield, true)
-	gui.set_enabled(self.upgrade_roll, true)
-	gui.set_enabled(self.upgrade_gyrator, true)
-	gui.set_enabled(self.upgrade_beam_splitter, true)
-	gui.set_enabled(self.upgrade_stabilizer, true)
-	gui.set_enabled(self.upgrade_guidance_system, true)
-	gui.set_enabled(self.upgrade_condensor, true)
+end
+
+local function get_cost_color(upgrade)
+	return upgrade.cost > state.gold and vmath.vector3(1, 1, 0, 1) or vmath.vector3(1, 0, 0, 1)
+end
+
+local function confirm(self, key, upgrades)
+	reset_upgrades(self)
+	
+	local label = gui.get_node("confirm_label")
+	local cost = gui.get_node("confirm_cost")
+	local cost_icon = gui.get_node("confirm_cost_icon")
+	
+	local node = self[key]
+	local level = state[key] or 0
+	local upgrade = upgrades[level + 1]
+
+	if upgrade == nil then
+		return
+	end
+
+	state.selected_upgrade = upgrade
+
+	if state.can_purchase_selected_upgrade() then
+		gui.set_color(label, COLOR_YELLOW)
+		gui.set_color(cost, COLOR_YELLOW)
+		gui.set_color(cost_icon, COLOR_YELLOW)
+	else
+		gui.set_color(label, COLOR_RED)
+		gui.set_color(cost, COLOR_RED)
+		gui.set_color(cost_icon, COLOR_RED)
+	end
+	
+	gui.set_text(cost, upgrade ~= nil and upgrade.cost or "")
+	gui.set_position(self.confirm, gui.get_position(node))
+	gui.set_enabled(self.confirm, true)
+	button_hover(self.confirm)
+
+	gui.set_enabled(node, false)
 end
 
 local function toggle_upgrades(self, visible)
@@ -51,7 +120,7 @@ local function toggle_upgrades(self, visible)
 		gui.set_enabled(self.upgrades, true)
 		gui.set_color(self.upgrades, vmath.vector4(1, 1, 1, 0))
 		gui.animate(self.upgrades, "color.w", 1, gui.EASING_OUTCUBIC, 1)
-		gui.animate(self.upgrades, "position.x", 200, gui.EASING_OUTBACK, 0.5, 0)
+		gui.animate(self.upgrades, "position.x", 220, gui.EASING_OUTBACK, 0.5, 0)
 	else
 		gui.animate(self.upgrades, "color.w", 0, gui.EASING_OUTCUBIC, 1)
 		gui.animate(self.upgrades, "position.x", -200, gui.EASING_INBACK, 0.5, 0, function()
@@ -60,16 +129,25 @@ local function toggle_upgrades(self, visible)
 	end
 end
 
-local function confirm(self, node, description)
-	self.pending_upgrade = node
-	reset_upgrades(self)
-	gui.set_position(self.confirm, gui.get_position(node))
-	gui.set_text(self.confirm_description, description)
-	gui.set_enabled(self.confirm, true)
-	gui.set_enabled(node, false)
+local function toggle_gameover(self, visible)
+	self.gameover_visible = visible
+
+	if visible then
+		gui.set_enabled(self.gameover, true)
+		gui.set_color(self.gameover, vmath.vector4(1, 1, 1, 0))
+		gui.animate(self.gameover, "color.w", 1, gui.EASING_OUTCUBIC, 1)
+		gui.animate(self.gameover, "position.y", 320, gui.EASING_OUTBACK, 0.5, 0)
+	else
+		gui.animate(self.gameover, "color.w", 0, gui.EASING_OUTCUBIC, 1)
+		gui.animate(self.gameover, "position.y", 270, gui.EASING_INBACK, 0.5, 0, function()
+			gui.set_enabled(self.gameover, false)
+		end)
+	end
 end
 
 function init(self)
+	self.sound_on = true
+	
 	self.gold = 0
 	self.health = 0
 	self.shield = 0
@@ -78,9 +156,13 @@ function init(self)
 	self.gold_label = gui.get_node("gold")
 	self.upgrade_time = gui.get_node("upgrade_time")
 	self.lazer = gui.get_node("lazer")
+	self.roll = gui.get_node("roll_cooldown")
 	self.missile = gui.get_node("missile_cooldown")
 
-	self.pending_upgrade = nil
+	self.gameover_visible = false
+	self.gameover = gui.get_node("gameover")
+	self.restart = gui.get_node("restart")
+
 	self.upgrades_visible = false
 	self.upgrades = gui.get_node("upgrades")
 	self.upgrade_forcefield = gui.get_node("forcefield/upgrade")
@@ -88,32 +170,36 @@ function init(self)
 	self.upgrade_gyrator = gui.get_node("gyrator/upgrade")
 	self.upgrade_beam_splitter = gui.get_node("beam_splitter/upgrade")
 	self.upgrade_stabilizer = gui.get_node("stabilizer/upgrade")
-	self.upgrade_guidance_system = gui.get_node("guidance_system/upgrade")
+	self.upgrade_missile = gui.get_node("missile/upgrade")
 	self.upgrade_condensor = gui.get_node("condensor/upgrade")
 	self.continue = gui.get_node("continue")
 	self.confirm = gui.get_node("confirm")
-	self.confirm_description = gui.get_node("confirm_description")
-	self.confirm_cost = gui.get_node("confirm_cost")
-	self.confirm_cost_icon = gui.get_node("confirm_cost_icon")
-
+	self.sound = gui.get_node("sound")
 	self.hovered = {}
+	self.disabled = {}
 
 	msg.post(".", "acquire_input_focus")
+
+	reset_upgrades(self)
 end
 
 function update(self, dt)
-	if state.is_upgrading() then
-		if not self.upgrades_visible then
-			toggle_upgrades(self, true)
-		end
-		
-		return
+	if state.is_upgrading() and not self.upgrades_visible then
+		toggle_upgrades(self, true)
+	end
+
+	if state.is_dead() and not self.gameover_visible then
+		toggle_gameover(self, true)
 	end
 	
 	-- smoothly lerp gold label text
 	if self.gold ~= state.gold then
-		self.gold = math.ceil(vmath.lerp(dt * 5, self.gold, state.gold))
-		gui.set_text(self.gold_label, "Gold:  " .. numWithCommas(self.gold))
+		if math.abs(state.gold - self.gold) < 1 then
+			self.gold = state.gold
+		else
+			self.gold = vmath.lerp(dt * 5, self.gold, state.gold)
+		end
+		gui.set_text(self.gold_label, "Gold:  " .. numWithCommas(math.floor(self.gold)))
 	end
 
 	-- upgrade timer
@@ -122,8 +208,11 @@ function update(self, dt)
 	local padding = seconds < 10 and "0" or ""
 	gui.set_text(self.upgrade_time, "Upgrade:  " .. minutes .. ":" .. padding .. seconds)
 
+	-- roll cooldown
+	gui.set_fill_angle(self.roll, -360 * state.get_roll_cooldown_pct())
+	
 	-- missile cooldown
-	gui.set_fill_angle(self.missile, -360 * state.get_cooldown_missile_pct())
+	gui.set_fill_angle(self.missile, -360 * state.get_missile_cooldown_pct())
 
 	-- health
 	if self.health ~= state.health then
@@ -147,47 +236,88 @@ function update(self, dt)
 	if self.stability ~= state.lazer_stability then
 		self.stability = state.lazer_stability
 		local lazer_scale = math.min(1, (state.lazer_stability or 0) / 100)
-		local lazer_color = lazer_scale < 0.25 and vmath.vector4(1, 0, 0, 1) or COLOR
+		local lazer_color = lazer_scale < 0.25 and vmath.vector4(1, 0, 0, 1) or COLOR_BLUE
 		gui.animate(self.lazer, "scale.x", lazer_scale, gui.EASING_OUTCUBIC, 0.1)
 		gui.animate(self.lazer, "color", lazer_color, gui.EASING_OUTCUBIC, 0.3)
 	end
 end
 
-function on_message(self, message_id, message, sender)	
-	-- if message_id == hash("upgrade") then
-	-- 	-- toggle_upgrades(self, true)
-	-- elseif message_id == hash("update_ui") then
-	-- 	-- update_expensive(self)
-	-- end
+function on_message(self, message_id, message, sender)
+	if message_id == hash("add_gold") then
+		local g = gui.clone(self.gold_label)
+		gui.set_parent(g, nil)
+		gui.set_text(g, "+ " .. numWithCommas(message.gold))
+		gui.set_pivot(g, gui.PIVOT_CENTER)
+		gui.set_position(g, message.position + vmath.vector3(0, 25, 0))
+		gui.animate(g, "position.y",  message.position.y + 50, gui.EASING_OUTCUBIC, 0.5)
+		gui.animate(g, "color.w", 0, gui.EASING_OUTCUBIC, 0.3, 0.5, function()
+			-- gui.delete_node(g)
+		end)
+	end
 end
 
 function on_input(self, action_id, action)
-	button(self, self.upgrade_forcefield, action_id, action, function()
-		confirm(self, self.upgrade_forcefield, "Improve shield")
-	end)
-	button(self, self.upgrade_roll, action_id, action, function()
-		confirm(self, self.upgrade_roll, "Unlock barrel rolls")
-	end)
-	button(self, self.upgrade_gyrator, action_id, action, function()
-		confirm(self, self.upgrade_gyrator, "Reduce roll cooldown")
-	end)
-	button(self, self.upgrade_beam_splitter, action_id, action, function()
-		confirm(self, self.upgrade_beam_splitter, "Additional lazers beams")
-	end)
-	button(self, self.upgrade_stabilizer, action_id, action, function()
-		confirm(self, self.upgrade_stabilizer, "Increase lazer lifetime")
-	end)
-	button(self, self.upgrade_guidance_system, action_id, action, function()
-		confirm(self, self.upgrade_guidance_system, "Unlock homing missiles")
-	end)
-	button(self, self.upgrade_condensor, action_id, action, function()
-		confirm(self, self.upgrade_condensor, "Reduce missile cooldown")
-	end)
+	if self.disabled["forcefield"] == nil then
+		button(self, self.upgrade_forcefield, action_id, action, function()
+			confirm(self, "upgrade_forcefield", UPGRADE_FORCEFIELD)
+		end)
+	end
+	if self.disabled["forcefield"] == nil then
+		button(self, self.upgrade_roll, action_id, action, function()
+			confirm(self, "upgrade_roll", UPGRADE_ROLL)
+		end)
+	end
+	if self.disabled["forcefield"] == nil then
+		button(self, self.upgrade_gyrator, action_id, action, function()
+			confirm(self, "upgrade_gyrator", UPGRADE_GYRATOR)
+		end)
+	end
+	if self.disabled["forcefield"] == nil then
+		button(self, self.upgrade_beam_splitter, action_id, action, function()
+			confirm(self, "upgrade_beam_splitter", UPGRADE_BEAM_SPLITTER)
+		end)
+	end
+	if self.disabled["forcefield"] == nil then
+		button(self, self.upgrade_stabilizer, action_id, action, function()
+			confirm(self, "upgrade_stabilizer", UPGRADE_STABILIZER)
+		end)
+	end
+	if self.disabled["forcefield"] == nil then
+		button(self, self.upgrade_missile, action_id, action, function()
+			confirm(self, "upgrade_missile", UPGRADE_MISSILE)
+		end)
+	end
+	if self.disabled["forcefield"] == nil then
+		button(self, self.upgrade_condensor, action_id, action, function()
+			confirm(self, "upgrade_condensor", UPGRADE_CONDENSOR)
+		end)
+	end
 	button(self, self.confirm, action_id, action, function()
+		local u = state.selected_upgrade
+		if state.purchase_selected_upgrade() then
+			if u.key == "upgrade_missile" then
+				gui.set_color(self.missile, COLOR_BLUE)
+			elseif u.key == "upgrade_roll" then
+				gui.set_color(self.roll, COLOR_BLUE)
+			end
+		end
+		reset_upgrades(self)
 	end)
 	button(self, self.continue, action_id, action, function()
-		state.continue()
 		toggle_upgrades(self, false)
+		state.continue()
+	end)
+	button(self, self.restart, action_id, action, function()
+		state.reset()
+		state.continue()
+		pprint(state.health)
+		toggle_gameover(self, false)
+		toggle_upgrades(self, false)
+	end)
+	button(self, self.sound, action_id, action, function()
+		self.sound_on = not self.sound_on
+		sound.set_group_gain(hash("master"), self.sound_on and 1 or 0)
+		gui.set_enabled(gui.get_node("volume"), self.sound_on and true or false)
 	end)
 
 	return self.upgrades_visible

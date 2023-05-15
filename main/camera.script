@@ -1,0 +1,21 @@
+local SHAKE_SCALE = 0.05
+
+function init(self)
+	self.shake = 0
+	
+end
+
+function update(self, dt)
+	if self.shake > 0 then
+		local x = self.shake * math.random() * SHAKE_SCALE
+		local y = self.shake * math.random() * SHAKE_SCALE
+		go.set_position(go.get_position() + vmath.vector3(x, y, 0))
+		self.shake = self.shake * 0.9 - 0.1
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("shake") then
+		self.shake = 8
+	end
+end

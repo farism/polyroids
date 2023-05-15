@@ -1,0 +1,34 @@
+local state = require("main.state")
+
+local SPEED = 0.5
+
+local function explode(self)
+	local scale = vmath.vector3(1) * state.upgrade_missile
+	local explosion = factory.create("explosions#factory", go.get_position(), vmath.quat(), {}, scale)
+	particlefx.stop("#missile_engine")
+	go.delete()
+end
+
+function init(self)
+	self.age = 0
+	self.dir = vmath.rotate(go.get_rotation(), vmath.vector3(0, 0, -1))
+	particlefx.play("#missile_engine")
+end
+
+function update(self, dt)	
+	self.age = self.age + dt
+
+	if self.age > 1 then
+		explode(self)
+	end
+
+	go.set_position(go.get_position() + self.dir * SPEED)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("set_target_position") then
+		self.direction = vmath.normalize(message.pos + vmath.vector3(0, 0, 0) - go.get_position())
+	elseif message_id == hash("trigger_response") then
+		explode(self)
+	end
+end

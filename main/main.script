@@ -1,4 +1,8 @@
+require("main.constants")
+
 math.randomseed(os.time())
+
+-- profiler.enable_ui(true)
 
 local state = require("main.state")
 
@@ -9,8 +13,6 @@ function init(self)
 	
 	sound.play("audio#music_track1")
 
-	state.cooldown_upgrade = 2 -- use fast initial upgrade_time time
-	
 	self.light = vmath.vector4(0, go.get_position().y + 10, -10, 0)
 end
 

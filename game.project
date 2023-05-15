@@ -9,6 +9,7 @@ shared_state = 1
 width = 960
 height = 640
 samples = 4
+high_dpi = 1
 
 [android]
 input_method = HiddenInputField
@@ -32,4 +33,7 @@ bundle_identifier = com.defold.example.basic3d
 
 [model]
 max_count = 1024
+
+[html5]
+scale_mode = no_scale
 

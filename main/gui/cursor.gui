@@ -11,8 +11,8 @@ background_color {
 }
 nodes {
   position {
-    x: 0.0
-    y: 0.0
+    x: 480.0
+    y: 320.0
     z: 0.0
     w: 1.0
   }
@@ -29,20 +29,20 @@ nodes {
     w: 1.0
   }
   size {
-    x: 100.0
-    y: 100.0
+    x: 50.0
+    y: 50.0
     z: 0.0
     w: 1.0
   }
   color {
     x: 0.0
-    y: 1.0
-    z: 0.0
+    y: 0.8784314
+    z: 1.0
     w: 1.0
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
-  texture: "main/crosshair"
+  texture: "main/reticle1"
   id: "cursor1"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
@@ -68,8 +68,8 @@ nodes {
 }
 nodes {
   position {
-    x: 0.0
-    y: 0.0
+    x: 480.0
+    y: 320.0
     z: 0.0
     w: 1.0
   }
@@ -86,20 +86,20 @@ nodes {
     w: 1.0
   }
   size {
-    x: 100.0
-    y: 100.0
+    x: 40.0
+    y: 40.0
     z: 0.0
     w: 1.0
   }
   color {
     x: 0.0
-    y: 1.0
-    z: 0.0
+    y: 0.8784314
+    z: 1.0
     w: 1.0
   }
   type: TYPE_BOX
   blend_mode: BLEND_MODE_ALPHA
-  texture: "main/crosshair2"
+  texture: "main/reticle2"
   id: "cursor2"
   xanchor: XANCHOR_NONE
   yanchor: YANCHOR_NONE
@@ -124,5 +124,5 @@ nodes {
   visible: true
 }
 material: "/builtins/materials/gui.material"
-adjust_reference: ADJUST_REFERENCE_DISABLED
+adjust_reference: ADJUST_REFERENCE_PARENT
 max_nodes: 512

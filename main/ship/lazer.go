@@ -1,6 +1,6 @@
 components {
-  id: "lazer"
-  component: "/main/materials/lazer.script"
+  id: "script"
+  component: "/main/ship/lazer.script"
   position {
     x: 0.0
     y: 0.0
@@ -37,7 +37,7 @@ embedded_components {
   }
 }
 embedded_components {
-  id: "collisionobject"
+  id: "lazer"
   type: "collisionobject"
   data: "collision_shape: \"\"\n"
   "type: COLLISION_OBJECT_TYPE_TRIGGER\n"

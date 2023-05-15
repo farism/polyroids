@@ -1,0 +1,6 @@
+function init(self)
+	timer.delay(0, false, function()
+		sound.play("audio#asteroid_destroy", { gain = 0.3 })
+		go.delete()
+	end)
+end

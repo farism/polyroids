@@ -12,9 +12,6 @@ local MAX_FORCE = 70
 local MIN_ANGULAR_FORCE = -10
 local MAX_ANGULAR_FORCE = 10
 local VARIANTS = 7
-local GOLD_CHANCE = 4
-local GOLD_MIN = 100
-local GOLD_MAX = 1000
 
 function spawn()
 	local factory_id = "#factory" .. math.random(1, VARIANTS)
@@ -47,8 +44,4 @@ function init(self)
 end
 
 function on_message(self, message_id, message, sender)
-	if message_id == hash("upgrade") then
-		pprint("asteroids")
-	elseif message_id == hash("continue") then
-	end
 end

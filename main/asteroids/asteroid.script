@@ -4,6 +4,20 @@ go.property("gold", 0)
 
 local GOLD_CHANCE = 25
 
+
+local function get_screen_position(projection, view)
+	local mat = projection * view
+	local pos = go.get_position()
+	local pv = vmath.vector4(pos.x, pos.y, pos.z, 1)
+	local w, h = window.get_size()
+	pv = mat * pv
+	pv = pv * (1 / pv.w)
+	pv.x = (pv.x / 2 + 0.5) * w / 2
+	pv.y = (pv.y / 2 + 0.5) * h / 2
+
+	return vmath.vector3(pv.x, pv.y, 0)
+end
+
 local function blink()
 	go.set("#rock", "tint", vmath.vector4(1, 0, 0, 1))
 	
@@ -12,14 +26,18 @@ local function blink()
 	end)
 end
 
-local function hit(self)
-	self.health = self.health - 1
+local function hit(self, damage)
+	self.health = self.health - damage
 	
 	if self.health <= 0 then
 		sound.play("audio#asteroid_destroy", { gain = 0.3 })
 		
 		if self.gold > 0 then
 			state.add_gold(self.gold)
+			msg.post("ui", "add_gold", { 
+				gold = self.gold, 
+				position = get_screen_position(state.projection, state.view) 
+			})
 		end
 
 		go.delete()
@@ -28,10 +46,14 @@ local function hit(self)
 	end
 end
 
+local function fade(id)
+	go.animate(id, "tint", go.PLAYBACK_ONCE_FORWARD, vmath.vector4(0.2, 0.2, 0.2, 1), go.EASING_OUTBACK, .5)
+end
+
 function init(self, properties, abc)
 	self.age = 0
 	self.health = self.gold > 0 and math.random(10, 20) or math.random(2, 5)
-	self.destroyed = false
+	self.faded = false
 
 	for i = 1, 6 do
 		if self.gold > i and math.random(0, 100) > GOLD_CHANCE then
@@ -48,17 +70,29 @@ end
 function update(self, dt)
 	self.age = self.age + dt
 	
-	if go.get_position().z > 10 or self.age > 20 then
+	local z = go.get_position().z
+
+	if z > 0 and not self.faded then
+		self.faded = true
+		fade("#rock")
+		for i = 1, 6 do
+			fade("#gold" .. i)
+		end
+	end
+	
+	if z > 10 or self.age > 20 then
 		go.delete()
 	end
 end
 
-function on_message(self, message_id, message, sender)
+function on_message(self, message_id, message, sender)	
 	if message_id == hash("collision_response") then
 		if message.other_id == hash("/ship") then
 			go.delete()
-		else
-			hit(self)
+		elseif message.other_group == hash("lazer") then
+			hit(self, 1)
+		elseif message.other_group == hash("missile") then
+			hit(self, 50)
 		end
 	end
 end
